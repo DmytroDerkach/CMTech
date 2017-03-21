@@ -1,4 +1,4 @@
-function [pitch, yaw, roll] = HeadPoseEstim_CMTech( npy_fileName, varargin )
+function angles = HeadPoseEstim_CMTech( npy_fileName, varargin )
 % 
 % Default:
 % [pitch, yaw, roll] = HeadPoseEstim_CMTech( npy_fileName );
@@ -7,10 +7,12 @@ function [pitch, yaw, roll] = HeadPoseEstim_CMTech( npy_fileName, varargin )
 % not specified, default is 4).
 % [pitch, yaw, roll] = HeadPoseEstim_CMTech( npy_fileName, nCores );
 %
+%
 
-    pitch = NaN;
-    yaw = NaN;
-    roll = NaN;
+    angles = struct('pitch',{},'yaw',{},'roll',{});
+    angles(1).pitch = NaN;
+    angles(1).yaw = NaN;
+    angles(1).roll = NaN;
     
     % Parameters
     maxPROC = 4;
@@ -65,9 +67,9 @@ function [pitch, yaw, roll] = HeadPoseEstim_CMTech( npy_fileName, varargin )
     
     if isempty( myMesh )
         warning('Estimation failed');    
-        pitch = 0;
-        yaw = 0;
-        roll = 0;
+        angles(1).pitch = 0;
+        angles(1).yaw = 0;
+        angles(1).roll = 0;
         return;
     end
     
@@ -97,6 +99,9 @@ function [pitch, yaw, roll] = HeadPoseEstim_CMTech( npy_fileName, varargin )
     if exist( dFL_name, 'file' )
         % Get coordinates
         lmk_coords = Read_dFL_Landmarks( dFL_name );
+        if isempty( lmk_coords )
+            showDemoError;
+        end        
         
         % Estimate angles
         [pG, yG, rG] = estimateAnglesFromGeometry( lmk_coords );    
@@ -104,12 +109,16 @@ function [pitch, yaw, roll] = HeadPoseEstim_CMTech( npy_fileName, varargin )
             myMesh, LmkRegress);
         
         if abs( pG - pD ) + abs( yG - yD ) + abs( rG - rD ) < 50
-            pitch = .5 * (pG + pD);
-            yaw = .5 * (yG + yD);
-            roll = .5 * (rG + rD);
+            angles(1).pitch = .5 * (pG + pD);
+            angles(1).yaw = .5 * (yG + yD);
+            angles(1).roll = .5 * (rG + rD);
             landmark_estim_ok = true;
         else
             landmark_estim_ok = false;
+        end
+    else
+        if r_val == 0
+            showDemoError;            
         end
     end
 
@@ -120,7 +129,7 @@ function [pitch, yaw, roll] = HeadPoseEstim_CMTech( npy_fileName, varargin )
         theIndices = mesh_umbrellaSample (myMesh, 7);
         SCFV_512 = mesh_3dSC_FixedView( myMesh, theIndices,...
             [1 0 0]', [0 0 1]', 2, 30, 5, [8 8 8]);        
-        [pitch, yaw, roll] = ...
+        [angles(1).pitch, angles(1).yaw, angles(1).roll] = ...
             estimAngles_DiccReg( SCFV_512, centers, dicc_regressor );           
     end
          
@@ -146,7 +155,7 @@ function myMesh = extract_HeadMesh_from_npy( npy_fileName )
     zz = zz( valid_idxs );
     
     % We only want the "cluster" that is closest to the camera
-    [clus_id, clus_cc] = kmeans( zz, 2 );
+    [clus_id, clus_cc] = kmeans( zz, 2, 'Replicates', 10 );
     if clus_cc(1) > clus_cc(2)
         valid_idxs = find( clus_id == 1 );
     else
@@ -158,7 +167,7 @@ function myMesh = extract_HeadMesh_from_npy( npy_fileName )
     zz = zz( valid_idxs );
     
     %  only head
-    [clus_id, clus_cc] = kmeans( yy, 2 );
+    [clus_id, clus_cc] = kmeans( yy, 2, 'Replicates', 10 );
     if clus_cc(1) > clus_cc(2)
         valid_idxs = find( clus_id == 1 );
     else
@@ -429,4 +438,14 @@ function [pitch, yaw, roll] = ...
   pitch = predic_Angles(1);
   yaw = predic_Angles(2);
   roll = predic_Angles(3);
+end
+
+
+function showDemoError
+msg = sprintf('%s\n%s\n%s\n%s',...
+    'No output from the 3D face landmarker',...
+    'This is either a system error or you might be using',...
+    'the "demo" version of srilf3dFL. Please obtain the full',...
+    'version from http://fsukno.atspace.eu/Data.htm');
+error( msg );
 end

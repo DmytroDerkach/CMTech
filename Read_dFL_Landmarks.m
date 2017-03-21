@@ -22,6 +22,11 @@ while not( feof( fid ))
         continue;
     end
     
+    if newLine(1) == '*'
+        nLandmarks = -1;
+        break;
+    end
+    
     if newLine(1) == 'L'
         nLandmarks = nLandmarks + 1;        
         
